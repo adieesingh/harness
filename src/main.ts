@@ -28,7 +28,7 @@ for await (const event of provider.stream({ messages, model })) {
     if (event.type === "text_delta") process.stdout.write(event.delta);
     else {
         const { usage, StopReason } = event.message;
-        console.log(`\n \n ${provider.name} .. ${model}..${usage.input} ..${StopReason}`)
+        console.log(`\n \n ${provider.name} .. ${model}..${usage.input} ..${StopReason} .. ${usage.input} .. ${usage.output}`)
     }
 }
 
