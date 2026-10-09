@@ -1,6 +1,8 @@
 import type { Provider } from "../src/type";
 import { createAnthropic } from "./anthropic";
 import { createOpenAi } from "./openai-compat";
+import dotenv from "dotenv";
+dotenv.config();
 
 const provider: Record<string, () => Provider> = {
   anthropic: createAnthropic,
@@ -15,8 +17,8 @@ const provider: Record<string, () => Provider> = {
     createOpenAi(
       "groq",
       "https://api.groq.com/openai/v1",
-      process.env.GROQ_KEY!,
-      "qwen/qwen",
+      process.env.GROQ_API_KEY!,
+      "qwen/qwen3.8-27b",
     ),
 };
 
