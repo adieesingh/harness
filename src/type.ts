@@ -15,7 +15,7 @@ export type ToolResultMessage = { role: "toolResult", toolCallId: string, toolNa
 export type Message = AssistantMessage | UserMessage | ToolResultMessage
 
 export type ToolSpec = { name: string, description: string }
-
+export type Tool = ToolSpec & {execute (args:Record<string,unknown>):Promise<string>}
 
 export type StreamEvent =
     | { type: "text_delta"; delta: string } | { type: "done"; message: AssistantMessage }

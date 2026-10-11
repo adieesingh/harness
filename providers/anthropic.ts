@@ -11,7 +11,7 @@ export function createAnthropic(): Provider {
                 max_tokens: 434,
                 model,
                 system,
-                messages: messages.map((r) => ({ role: r.role, content: r.content })),
+                messages: messages.map((r) => ({ role: r.role, content: r.content  })),
             });
             let text = "";
             for await (const event of stream) {
