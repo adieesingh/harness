@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { Usage, Provider, StopReason } from "../src/type";
+import type { Usage, Provider, StopReason } from "../type";
 export function createOpenAi(
   name: string,
   baseURL: string,

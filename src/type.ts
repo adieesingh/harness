@@ -23,7 +23,8 @@ export type StreamEvent =
 export type StreamOptions = {
     messages: Message[],
     model: string,
-    system?: string
+    system?: string,
+    tool?:ToolSpec[]
 }
 
 export interface Provider {

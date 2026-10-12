@@ -1,4 +1,4 @@
-import type { Provider } from "../src/type";
+import type { Provider } from "../type";
 import { createAnthropic } from "./anthropic";
 import { createOpenAi } from "./openai-compat";
 import dotenv from "dotenv";
