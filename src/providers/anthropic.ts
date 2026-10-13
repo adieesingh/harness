@@ -1,6 +1,6 @@
-
 import Anthropic from "@anthropic-ai/sdk";
 import type { StopReason, Provider, StreamOptions, Message } from "../type";
+import type { ContentBlock } from "@anthropic-ai/sdk/resources";
 
 function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
   return message.map((m): Anthropic.MessageParam => {
@@ -39,27 +39,50 @@ export function createAnthropic(): Provider {
   return {
     name: "anthrophic",
     defaultModel: "claude-sonnet-5",
-    async *stream({ messages, model, system,tools=[] }) {
+    async *stream({ messages, model, system, tools = [] }) {
       const stream = client.messages.stream({
         max_tokens: 434,
         model,
         system,
         messages: toAnthropic(messages),
-        tools:tools.map((t)=>({
-          name:t.name,
-          description:t.description,
-          input_schema:t.parmaeters as Anthropic.Tool.InputSchema  
-        }))
+        tools: tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.parmaeters as Anthropic.Tool.InputSchema,
+        })),
       });
       let text = "";
+      let json ="";
+      let content: ContentBlock[] = [];
       for await (const event of stream) {
-        if (
-          event.type === "content_block_delta" &&
-          event.delta.type === "text_delta"
-        ) {
-          ((text += event.delta.text),
-            yield { type: "text_delta", delta: event.delta.type });
+        if (event.type === "content_block_start") {
+          const b = event.content_block;
+          if (b.type === "text") content.push({ type: "text", text: "" });
+          else if (b.type === "tool_use") {
+            content.push({
+              type: "toolCall",
+              id: b.id,
+              name: b.name,
+              arguments: {},
+            });
+            json = "";
+          }
         }
+        else if(event.type==="content_block_delta"){
+          const block = content.at(-1);
+          if(event.delta.type==="text_delta" && block?.type=="text"){
+            block.text += event.delta.text
+            yield(type)
+          }
+        }
+
+        // if (
+        //   event.type === "content_block_delta" &&
+        //   event.delta.type === "text_delta"
+        // ) {
+        //   ((text += event.delta.text),
+        //     yield { type: "text_delta", delta: event.delta.type });
+        // }
       }
       const final = await stream.finalMessage();
       const StopReason: StopReason =
