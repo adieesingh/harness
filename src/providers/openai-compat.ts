@@ -10,6 +10,7 @@ export function createOpenAi(
   return {
     defaultModel,
     name,
+    
     async *stream({ messages, system, model }) {
       const chat: OpenAI.ChatCompletionAssistantMessageParam[] = messages.map(
         (r: any) => ({ role: r.role, content: r.content }),

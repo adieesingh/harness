@@ -1,5 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { StopReason, Provider, StreamOptions, Message } from "../type";
+import type {
+  StopReason,
+  Provider,
+  StreamOptions,
+  Message,
+  ToolResultMessage,
+} from "../type";
 import type { ContentBlock } from "@anthropic-ai/sdk/resources";
 
 function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
@@ -11,12 +17,12 @@ function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
         content: m.content.map(
           (b): Anthropic.ContentBlockParam =>
             b.type === "text"
-              ? { type: "text", text: b.text }
+              ? { type: "text", text: "" }
               : {
                   type: "tool_use",
                   id: b.id,
                   name: b.name,
-                  input: b.arugments,
+                  input: b.arguments,
                 },
         ),
       };
@@ -52,7 +58,7 @@ export function createAnthropic(): Provider {
         })),
       });
       let text = "";
-      let json ="";
+      let json = "";
       let content: ContentBlock[] = [];
       for await (const event of stream) {
         if (event.type === "content_block_start") {
@@ -67,18 +73,18 @@ export function createAnthropic(): Provider {
             });
             json = "";
           }
-        }
-        else if(event.type==="content_block_delta"){
+        } else if (event.type === "content_block_delta") {
           const block = content.at(-1);
-          if(event.delta.type==="text_delta" && block?.type=="text"){
-            block.text += event.delta.text
-            yield{type:"text_delta",delta:event.delta.text}
-          }else if (event.delta.type==="input_json_delta"){
-            json+= event.delta.partial_json
+          if (event.delta.type === "text_delta" && block?.type == "text") {
+            block.text += event.delta.text;
+            yield { type: "text_delta", delta: event.delta.text };
+          } else if (event.delta.type === "input_json_delta") {
+            json += event.delta.partial_json;
           }
-        }else if(event.type==="content_block_stop"){
+        } else if (event.type === "content_block_stop") {
           const block = content.at(-1);
-          if(block?.type==="toolCall") block.arguments = json?JSON.parse(json):{};
+          if (block?.type === "toolCall")
+            block.arguments = json ? JSON.parse(json) : {};
         }
 
         // if (
@@ -91,7 +97,11 @@ export function createAnthropic(): Provider {
       }
       const final = await stream.finalMessage();
       const StopReason: StopReason =
-        final.stop_reason === "tool_use"?"toolUse": final.stop_reason=== "max_tokens" ? "length" : "stop";
+        final.stop_reason === "tool_use"
+          ? "toolUse"
+          : final.stop_reason === "max_tokens"
+            ? "length"
+            : "stop";
       yield {
         type: "done",
         message: {
