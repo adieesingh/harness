@@ -1,5 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { StopReason, Provider, StreamOptions, Message } from "../type";
+import type {
+  StopReason,
+  Provider,
+  StreamOptions,
+  Message,
+  ToolResultMessage,
+} from "../type";
 import type { ContentBlock } from "@anthropic-ai/sdk/resources";
 
 function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
@@ -11,11 +17,12 @@ function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
         content: m.content.map(
           (b): Anthropic.ContentBlockParam =>
             b.type === "text"
-              ? { type: "text", text: b.text }
+              ? { type: "text", text: "" }
               : {
                   type: "tool_use",
                   id: b.id,
                   name: b.name,
+                  input: b.arguments,
                   input: b.arguments,
                 },
         ),
@@ -52,7 +59,7 @@ export function createAnthropic(): Provider {
         })),
       });
       let text = "";
-      let json ="";
+      let json = "";
       let content: ContentBlock[] = [];
       for await (const event of stream) {
         if (event.type === "content_block_start") {
@@ -67,12 +74,11 @@ export function createAnthropic(): Provider {
             });
             json = "";
           }
-        }
-        else if(event.type==="content_block_delta"){
+        } else if (event.type === "content_block_delta") {
           const block = content.at(-1);
           if(event.delta.type==="text_delta" && block?.type=="text"){
             block.text += event.delta.text
-            yield(  )
+            yield(type)
           }
         }
 
@@ -86,12 +92,16 @@ export function createAnthropic(): Provider {
       }
       const final = await stream.finalMessage();
       const StopReason: StopReason =
-        final.stop_reason === "max_tokens" ? "length" : "stop";
+        final.stop_reason === "tool_use"
+          ? "toolUse"
+          : final.stop_reason === "max_tokens"
+            ? "length"
+            : "stop";
       yield {
         type: "done",
         message: {
           role: "assistant",
-          content: text,
+          content,
           usage: {
             input: final.usage.input_tokens,
             output: final.usage.output_tokens,
