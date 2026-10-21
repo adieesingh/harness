@@ -17,13 +17,13 @@ function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
         content: m.content.map(
           (b): Anthropic.ContentBlockParam =>
             b.type === "text"
-              ? { type: "text", text: "" }
+              ? { type: "text", text: b.text }
               : {
                   type: "tool_use",
                   id: b.id,
                   name: b.name,
                   input: b.arguments,
-                  input: b.arguments,
+                
                 },
         ),
       };
@@ -48,14 +48,14 @@ export function createAnthropic(): Provider {
     defaultModel: "claude-sonnet-5",
     async *stream({ messages, model, system, tools = [] }) {
       const stream = client.messages.stream({
-        max_tokens: 434,                    
+        max_tokens: 434,
         model,
         system,
         messages: toAnthropic(messages),
         tools: tools.map((t) => ({
           name: t.name,
           description: t.description,
-          parameters: t.parameters ,
+          parameters: t.parameters,
         })),
       });
       let text = "";
@@ -64,21 +64,23 @@ export function createAnthropic(): Provider {
       for await (const event of stream) {
         if (event.type === "content_block_start") {
           const b = event.content_block;
-          if (b.type === "text") content.push({ type: "text", text: "" });
+          if (b.type === "text") content.push({ type: "text", text:"" });
           else if (b.type === "tool_use") {
             content.push({
               type: "toolCall",
               id: b.id,
               name: b.name,
               arguments: {},
-            });
+            })
             json = "";
           }
         } else if (event.type === "content_block_delta") {
           const block = content.at(-1);
-          if(event.delta.type==="text_delta" && block?.type=="text"){
-            block.text += event.delta.text
-            yield(type)
+          if (event.delta.type === "text_delta" && block?.type == "text") {
+            block.text += event.delta.text;
+            yield {type:"text_delta",delta:event.delta.text};
+          }else if(event.delta.type==="input_json_delta"){
+            json+=event.delta.partial_json
           }
         }
 
