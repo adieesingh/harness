@@ -16,7 +16,7 @@ function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
                   type: "tool_use",
                   id: b.id,
                   name: b.name,
-                  input: b.arugments,
+                  input: b.arguments,
                 },
         ),
       };
@@ -41,14 +41,14 @@ export function createAnthropic(): Provider {
     defaultModel: "claude-sonnet-5",
     async *stream({ messages, model, system, tools = [] }) {
       const stream = client.messages.stream({
-        max_tokens: 434,
+        max_tokens: 434,                    
         model,
         system,
         messages: toAnthropic(messages),
         tools: tools.map((t) => ({
           name: t.name,
           description: t.description,
-          input_schema: t.parmaeters as Anthropic.Tool.InputSchema,
+          parameters: t.parameters ,
         })),
       });
       let text = "";
@@ -72,7 +72,7 @@ export function createAnthropic(): Provider {
           const block = content.at(-1);
           if(event.delta.type==="text_delta" && block?.type=="text"){
             block.text += event.delta.text
-            yield(type)
+            yield(  )
           }
         }
 
