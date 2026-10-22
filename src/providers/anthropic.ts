@@ -57,6 +57,7 @@ export function createAnthropic(): Provider {
           name: t.name,
           description: t.description,
           parameters: t.parameters,
+          input_schema:t.parameters as Anthropic.Tool.InputSchema,
         })) : undefined,
       });
       let text = "";
