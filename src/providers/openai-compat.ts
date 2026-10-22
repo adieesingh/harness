@@ -59,6 +59,7 @@ export function createOpenAi(
           : chat,
       });
       let text = "";
+      const calls:{id:string,name:string,args:string}[]=[];
       let usage: Usage = { input: 0, output: 0 };
       let StopReason: StopReason = "stop";
       for await (const chunk of stream) {
@@ -67,6 +68,13 @@ export function createOpenAi(
           text += choice.delta.content;
           yield { type: "text_delta", delta: choice.delta.content };
         }
+        for(const tc of choice?.delta.tool_calls??[]){
+          calls[tc.index] ??= { id:tc.id ?? `call_${tc.index}`,
+          name:tc.function?.name ?? "",
+          args :"" };
+          calls[tc.index]?.args += tc.function?.arguments ?? "" ;                             
+                                           
+        }                                     
         if (choice?.finish_reason === "length") StopReason = "length";
         if (chunk.usage)
           usage = {
