@@ -104,7 +104,7 @@ export function createOpenAi(
         }
       }
 
-      // 2. Loop khtam hone ke baad final content block assemble karein
+  
       const content: ContentBlock[] = [];
       if (text) {
         content.push({ type: "text", text });
