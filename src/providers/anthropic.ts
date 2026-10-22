@@ -4,9 +4,10 @@ import type {
   Provider,
   StreamOptions,
   Message,
+  ContentBlock,
   ToolResultMessage,
 } from "../type";
-import type { ContentBlock } from "@anthropic-ai/sdk/resources";
+
 
 function toAnthropic(message: Message[]): Anthropic.MessageParam[] {
   return message.map((m): Anthropic.MessageParam => {
@@ -52,11 +53,11 @@ export function createAnthropic(): Provider {
         model,
         system,
         messages: toAnthropic(messages),
-        tools: tools.map((t) => ({
+        tools: tools.length ? tools.map((t) => ({
           name: t.name,
           description: t.description,
           parameters: t.parameters,
-        })),
+        })) : undefined,
       });
       let text = "";
       let json = "";
@@ -64,7 +65,7 @@ export function createAnthropic(): Provider {
       for await (const event of stream) {
         if (event.type === "content_block_start") {
           const b = event.content_block;
-          if (b.type === "text") content.push({ type: "text", text:"" });
+          if (b.type === "text") content.push({ type: "text", text:" "});
           else if (b.type === "tool_use") {
             content.push({
               type: "toolCall",
@@ -83,14 +84,6 @@ export function createAnthropic(): Provider {
             json+=event.delta.partial_json
           }
         }
-
-        // if (
-        //   event.type === "content_block_delta" &&
-        //   event.delta.type === "text_delta"
-        // ) {
-        //   ((text += event.delta.text),
-        //     yield { type: "text_delta", delta: event.delta.type });
-        // }
       }
       const final = await stream.finalMessage();
       const StopReason: StopReason =
