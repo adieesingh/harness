@@ -25,7 +25,7 @@ export type AgentOptions = {
 
 export async function runAgent(opts: AgentOptions): Promise<void> {
   const { provider, model, system, messages, onEvent } = opts;
-  const maxTurns = opts.maxTurns ?? 20;
+  const maxTurns = opts.maxTurns ?? 50;
   const push = (message: Message) => {
     messages.push(message);
     onEvent({ type: "message", message });
@@ -71,5 +71,5 @@ export async function runAgent(opts: AgentOptions): Promise<void> {
         push({role:"toolResult",toolCallId:call.id,toolName:call.name,content:result,isError})
     }
   }
-  throw new Error(`maxtiurn is ${maxTurns} is done`)
+  throw new Error(`maxTurn is ${maxTurns} is done`)
 }
