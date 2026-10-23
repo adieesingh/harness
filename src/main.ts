@@ -5,13 +5,15 @@ import { parseArgs } from "node:util";
 import { getProvider } from "./providers";
 import type { AssistantMessage, Message } from "./type";
 import { readTool } from "./tool/read";
+import { tools } from "./tool";
+import { runAgent } from "./agent/loop";
 
 // loading env
 config({
   path: fileURLToPath(new URL("../.env", import.meta.url)),
   quiet: true,
 });
-const tools = [readTool];
+// const tools = [readTool];
 
 const { values } = parseArgs({
   options: {
@@ -28,7 +30,23 @@ if (!values.prompt) {
 const provider = getProvider(values.provider);
 const model = values.model ?? provider.defaultModel;
 const messages: Message[] = [{ role: "user", content: values.prompt }];
+await runAgent({
+  provider,
+  messages,
+  model,
+  tools,
+  onEvent(event) {
+    if (event.type === "text") process.stdout.write(event.delta);
+    else if (event.type=="tool_start") console.log(`\n ${event.call.name}`)
+      else if (event.type=="turn_end"){
+    const {usage,StopReason}=event.message
+     console.log(
+      `\n \n ${provider.name} .. ${model}..${usage.input} ..${StopReason} .. ${usage.input} .. ${usage.output}`,
+     );
 
+    }
+  },
+});
 async function callModel(): Promise<AssistantMessage> {
   for await (const event of provider.stream({ messages, model, tools })) {
     if (event.type === "text_delta") process.stdout.write(event.delta);
@@ -42,23 +60,23 @@ async function callModel(): Promise<AssistantMessage> {
   }
   throw new Error("stream ended without a done event");
 }
-const first = await callModel();
-messages.push(first);
-if (first.StopReason == "toolUse") {
-  for (const block of first.content) {
-    if (block.type !== "toolCall") continue;
-    console.log(`-> ${block.name} (${JSON.stringify(block.arguments)})`);
-    const result = await readTool.execute(block.arguments);
-    messages.push({
-      role: "toolResult",
-      toolCallId: block.id,
-      toolName: block.name,
-      content: result,
-      isError: false,
-    });
-  }
-  messages.push(await callModel());
-}
+// const first = await callModel();
+// messages.push(first);
+// if (first.StopReason == "toolUse") {
+//   for (const block of first.content) {
+//     if (block.type !== "toolCall") continue;
+//     console.log(`-> ${block.name} (${JSON.stringify(block.arguments)})`);
+//     const result = await readTool.execute(block.arguments);
+//     messages.push({
+//       role: "toolResult",
+//       toolCallId: block.id,
+//       toolName: block.name,
+//       content: result,
+//       isError: false,
+//     });
+//   }
+//   messages.push(await callModel());
+// }
 
 // for await (const event of provider.stream({ messages, model })) {
 //   if (event.type === "text_delta") process.stdout.write(event.delta);
