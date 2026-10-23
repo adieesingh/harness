@@ -33,8 +33,12 @@ export async function runAgent(opts: AgentOptions): Promise<void> {
 
   for (let turn = 1; turn <= maxTurns; ++turn) {
     let assitant: AssistantMessage | undefined;
+    const MAX_RECENT_MESSAGE=8;
+    const trimmedMessages = messages.length > MAX_RECENT_MESSAGE 
+    ? [messages[0]!,...messages.slice(-MAX_RECENT_MESSAGE)]
+    : messages;
     for await (const event of provider.stream({
-      messages, 
+      messages:trimmedMessages , 
       model,
       system,
       tools,    
@@ -57,7 +61,7 @@ export async function runAgent(opts: AgentOptions): Promise<void> {
 
         try {
             const tool=tools.find((t:any)=>t.name==call.name);
-            if(!tool) throw new Error(`unknown tool name ${tool}`)
+            if(!tool) throw new Error(`unknown tool name ${call.name}`)
                 result = await tool.execute(call.arguments)
         } catch (e) {
             result = `Error ${e instanceof Error?e.message:String(e)}`
