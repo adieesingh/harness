@@ -1,7 +1,9 @@
-import { readTool } from './read';
-import type { Tool } from "../type";
-import { bashTool } from './bash';
+import type { Tool } from "../type.ts";
+import { bashTool } from "./bash.ts";
+import { readTool } from "./read.ts";
+import { lsTool } from "./ls.ts";
+import { grepTool } from "./grep.ts";
+import { statTool } from "./stat.ts";
+import { findTool } from "./find.ts";
 
-export const tools:Tool[]=[readTool,bashTool]
-
-
+export const tools: Tool[] = [bashTool, readTool, lsTool, grepTool, statTool, findTool];    

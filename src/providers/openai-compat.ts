@@ -1,158 +1,76 @@
 import OpenAI from "openai";
-import type {
-  ContentBlock,
-  Usage,
-  Provider,
-  StopReason,
-  Message,
-} from "../type";
+import type { ContentBlock, Message, Provider, StopReason, Usage } from "../type.ts";
 
+// our messages -> OpenAI's wire format
 function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
   return messages.map((m): OpenAI.ChatCompletionMessageParam => {
     if (m.role === "user") return { role: "user", content: m.content };
     if (m.role === "assistant") {
-      const text = m.content
-        .filter((b) => b.type === "text")
-        .map((c) => c.text)
-        .join(" ");
+      const text = m.content.filter((b) => b.type === "text").map((b) => b.text).join("");
       const calls = m.content.filter((b) => b.type === "toolCall");
       return {
         role: "assistant",
         content: text || null,
+        // OpenAI wants the arguments as a JSON *string*
         tool_calls: calls.length
-          ? calls.map((c):OpenAI.Chat.ChatCompletionMessageToolCall => {
-              const toolCallObj: any = {
-                id: c.id,
-                type: "function" as const,
-                function: {
-                  name: c.name,
-                  arguments: JSON.stringify(c.arguments),
-                },
-              };
-              if(c.thought_signature){
-                toolCallObj.thought_signature=c.thought_signature 
-              }
-              return toolCallObj
-            })
+          ? calls.map((c) => ({
+              id: c.id,
+              type: "function" as const,
+              function: { name: c.name, arguments: JSON.stringify(c.arguments) },
+            }))
           : undefined,
       };
     }
-
+    // toolResult -> its own message with role "tool"
     return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
   });
 }
 
-export function createOpenAi(
-  name: string,
-  baseURL: string,
-  apiKey: string | undefined,
-  defaultModel: string,
-): Provider {
+// one adapter for every OpenAI-compatible API: only baseURL, key and model change
+export function createOpenAICompat(name: string, baseURL: string, apiKey: string | undefined, defaultModel: string): Provider {
   const client = new OpenAI({ baseURL, apiKey });
   return {
-    defaultModel,
     name,
-    async *stream({ messages, system, model, tools = [] }) {
+    defaultModel,
+    async *stream({ messages, model, system, tools = [] }) {
       const chat = toOpenAI(messages);
       const stream = await client.chat.completions.create({
         model,
         stream: true,
-        stream_options: { include_usage: true },
+        stream_options: { include_usage: true }, // usage comes in the last chunk
+        messages: system ? [{ role: "system", content: system }, ...chat] : chat,
         tools: tools.length
           ? tools.map((t) => ({
               type: "function" as const,
-              function: {
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters,
-
-              },
-            }
-          ))
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            }))
           : undefined,
-        messages: system
-          ? [{ role: "system", content: system }, ...chat]
-          : chat,
       });
-
       let text = "";
-      const calls: { id: string; name: string; args: string,thought_signature?:string }[] = [];
+      const calls: { id: string; name: string; args: string }[] = []; // slot = tool_calls[].index
       let usage: Usage = { input: 0, output: 0 };
       let StopReason: StopReason = "stop";
-
-   
       for await (const chunk of stream) {
         const choice = chunk.choices[0];
-
-        if (choice?.delta.content) {
+        if (choice?.delta?.content) {
           text += choice.delta.content;
           yield { type: "text_delta", delta: choice.delta.content };
         }
-
-        for (const tc of choice?.delta.tool_calls ?? []) {
-          const idx = tc.index ?? 0;
-          calls[idx] ??= {
-            id: tc.id ?? `call_${idx}`,
-            name: tc.function?.name ?? "",
-            args: "",
-            thought_signature:(tc as any).thought_signature || undefined,
-          };
-          if (tc.function?.name) {
-            calls[idx].name = tc.function.name;
-          }
-          if((tc as any).thought_signature ){
-            calls[idx].thought_signature=(tc as any).thought_signature;
-          }
-          if (tc.id) {
-            calls[idx].id = tc.id;
-          }
-          calls[idx].args += tc.function?.arguments ?? "";
+        for (const tc of choice?.delta?.tool_calls ?? []) {
+          // the first piece of a call brings id + name, later pieces only bring more arguments
+          calls[tc.index] ??= { id: tc.id ?? `call_${tc.index}`, name: tc.function?.name ?? "", args: "" };
+          calls[tc.index]!.args += tc.function?.arguments ?? "";
         }
-
-        if (choice?.finish_reason === "tool_calls") {
-          StopReason = "toolUse";
-        } else if (choice?.finish_reason === "length") {
-          StopReason = "length";
-        }
-
-        if (chunk.usage) {
-          usage = {
-            input: chunk.usage.prompt_tokens,
-            output: chunk.usage.completion_tokens,
-          };
-        }
+        if (choice?.finish_reason === "tool_calls") StopReason = "toolUse";
+        else if (choice?.finish_reason === "length") StopReason = "length";
+        if (chunk.usage) usage = { input: chunk.usage.prompt_tokens, output: chunk.usage.completion_tokens };
       }
-
-      const content: ContentBlock[] = [];
-      if (text) {
-        content.push({ type: "text", text });
+      const content: ContentBlock[] = text ? [{ type: "text", text }] : [];
+      for (const c of calls) {
+        if (c) content.push({ type: "toolCall", id: c.id, name: c.name, arguments: c.args ? JSON.parse(c.args) : {} });
       }
-
-      for (const t of calls) {
-        if (t) {
-          let parsedArgs = {};
-          try {
-            parsedArgs = t.args ? JSON.parse(t.args) : {};
-          } catch (e) {
-            parsedArgs = {};
-          }
-          content.push({
-            type: "toolCall",
-            id: t.id,
-            name: t.name,
-            arguments: parsedArgs,
-          });
-        }
-      }
-
-      if (content.some((b) => b.type === "toolCall")) {
-        StopReason = "toolUse";
-      }
-
-      yield {
-        type: "done",
-        message: { role: "assistant", content, StopReason, usage },
-      };
+      if (content.some((b) => b.type === "toolCall")) StopReason = "toolUse";
+      yield { type: "done", message: { role: "assistant", content, usage, StopReason } };
     },
   };
 }
