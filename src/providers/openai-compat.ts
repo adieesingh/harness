@@ -1,5 +1,11 @@
 import OpenAI from "openai";
-import type { ContentBlock, Usage, Provider, StopReason, Message } from "../type";
+import type {
+  ContentBlock,
+  Usage,
+  Provider,
+  StopReason,
+  Message,
+} from "../type";
 
 function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
   return messages.map((m): OpenAI.ChatCompletionMessageParam => {
@@ -14,17 +20,24 @@ function toOpenAI(messages: Message[]): OpenAI.ChatCompletionMessageParam[] {
         role: "assistant",
         content: text || null,
         tool_calls: calls.length
-          ? calls.map((c) => ({
-              id: c.id,
-              type: "function" as const,
-              function: {
-                name: c.name,
-                arguments: JSON.stringify(c.arguments),
-              },
-            }))
+          ? calls.map((c):OpenAI.Chat.ChatCompletionMessageToolCall => {
+              const toolCallObj: any = {
+                id: c.id,
+                type: "function" as const,
+                function: {
+                  name: c.name,
+                  arguments: JSON.stringify(c.arguments),
+                },
+              };
+              if(c.thought_signature){
+                toolCallObj.thought_signature=c.thought_signature 
+              }
+              return toolCallObj
+            })
           : undefined,
       };
     }
+
     return { role: "tool", tool_call_id: m.toolCallId, content: m.content };
   });
 }
@@ -52,8 +65,10 @@ export function createOpenAi(
                 name: t.name,
                 description: t.description,
                 parameters: t.parameters,
+
               },
-            }))
+            }
+          ))
           : undefined,
         messages: system
           ? [{ role: "system", content: system }, ...chat]
@@ -61,14 +76,14 @@ export function createOpenAi(
       });
 
       let text = "";
-      const calls: { id: string; name: string; args: string }[] = [];
+      const calls: { id: string; name: string; args: string,thought_signature?:string }[] = [];
       let usage: Usage = { input: 0, output: 0 };
       let StopReason: StopReason = "stop";
 
-      // 1. Loop ke andar sirf text_delta yield honge aur data accumulate hoga
+   
       for await (const chunk of stream) {
         const choice = chunk.choices[0];
-        
+
         if (choice?.delta.content) {
           text += choice.delta.content;
           yield { type: "text_delta", delta: choice.delta.content };
@@ -80,9 +95,13 @@ export function createOpenAi(
             id: tc.id ?? `call_${idx}`,
             name: tc.function?.name ?? "",
             args: "",
+            thought_signature:(tc as any).thought_signature || undefined,
           };
           if (tc.function?.name) {
             calls[idx].name = tc.function.name;
+          }
+          if((tc as any).thought_signature ){
+            calls[idx].thought_signature=(tc as any).thought_signature;
           }
           if (tc.id) {
             calls[idx].id = tc.id;
@@ -104,7 +123,6 @@ export function createOpenAi(
         }
       }
 
-  
       const content: ContentBlock[] = [];
       if (text) {
         content.push({ type: "text", text });

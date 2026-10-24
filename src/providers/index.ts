@@ -20,6 +20,14 @@ const provider: Record<string, () => Provider> = {
       process.env.GROQ_API_KEY!,
       "qwen/qwen3.8-27b",
     ),
+  gemini:()=>
+    createOpenAi(
+      "gemini",
+      "https://generativelanguage.googleapis.com/v1beta/openai/",
+      process.env.GEMINI_API_KEY!,
+      "gemini-3.8-flash"
+    )
+  
 };
 
 export function getProvider(name: string): Provider {

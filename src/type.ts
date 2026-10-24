@@ -1,7 +1,7 @@
 export type Usage = { input: number, output: number }
 export type StopReason = "length" | "stop" | "toolUse";
 export type TextBlock = { type: "text", text: string }
-export type ToolCallBlock = { type: "toolCall", id: string, name: string, arguments: Record<string, unknown> }
+export type ToolCallBlock = { type: "toolCall", id: string, name: string, arguments: Record<string, unknown>,thought_signature?:string }
 export type ContentBlock = TextBlock | ToolCallBlock;
 export type UserMessage = { role: "user"; content: string }
 export type AssistantMessage = {
